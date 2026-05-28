@@ -1003,18 +1003,34 @@ function resultsEqual(a, b) {
   const colsB = Object.keys(b[0]).sort();
   if (colsA.length !== colsB.length) return false;
   for (let i = 0; i < colsA.length; i++) if (colsA[i] !== colsB[i]) return false;
-  const canon = (rows) => {
-    return rows.map(r => colsA.map(k => {
+  const canon = (rows, cols) => {
+    return rows.map(r => cols.map(k => {
       const v = r[k];
       if (v == null) return 'NULL';
       if (typeof v === 'number') return Number(v).toFixed(4);
       return String(v);
     }).join('|')).sort();
   };
-  const ca = canon(a);
-  const cb = canon(b);
+  const ca = canon(a, colsA);
+  const cb = canon(b, colsB);
   for (let i = 0; i < ca.length; i++) if (ca[i] !== cb[i]) return false;
   return true;
+}
+// Returns 'diff_cols' if data matches but column names differ; 'diff_data' if values differ; null if equal
+function resultsDiffKind(a, b) {
+  if (!a || !b) return 'diff_data';
+  if (a.length !== b.length) return 'diff_data';
+  if (a.length === 0) return null;
+  const colsA = Object.keys(a[0]).sort();
+  const colsB = Object.keys(b[0]).sort();
+  const namesMatch = colsA.length === colsB.length && colsA.every((c, i) => c === colsB[i]);
+  // Compare data using position-based values
+  const va = a.map(r => colsA.map(k => r[k] == null ? 'NULL' : (typeof r[k] === 'number' ? Number(r[k]).toFixed(4) : String(r[k]))).join('|')).sort();
+  const vb = b.map(r => colsB.map(k => r[k] == null ? 'NULL' : (typeof r[k] === 'number' ? Number(r[k]).toFixed(4) : String(r[k]))).join('|')).sort();
+  const dataMatch = va.length === vb.length && va.every((v, i) => v === vb[i]);
+  if (dataMatch && !namesMatch) return 'diff_cols';
+  if (!dataMatch) return 'diff_data';
+  return null;
 }
 
 // ================== UI ==================
@@ -1217,19 +1233,28 @@ window.runUserSql = function() {
   if (err) {
     document.getElementById('userResult').innerHTML = '';
     document.getElementById('userStatus').innerHTML = `<div class="status err">❌ Error: ${escapeHtml(err)}</div>`;
+    document.getElementById('expectedCard').classList.remove('hidden');
   } else if (cols.length === 0) {
     document.getElementById('userResult').innerHTML = '';
-    document.getElementById('userStatus').innerHTML = `<div class="status info">ℹ️ Statement executed (no result set).<br>This app only checks SELECT queries.</div>`;
+    document.getElementById('userStatus').innerHTML = `<div class="status info">ℹ️ Statement executed but has no result set.<br>Your answer was <strong>not checked</strong> — this app only validates <strong>SELECT</strong> queries.<br><small>Please write a SELECT query to get feedback.</small></div>`;
+    // Hide expected result for non-SELECT statements since it's not comparable
+    document.getElementById('expectedCard').classList.add('hidden');
+    return;
   } else {
     document.getElementById('userResult').innerHTML = resultToTable(res);
     if (exp && exp.ok && resultsEqual(res, exp.rows)) {
       document.getElementById('userStatus').innerHTML = `<div class="status ok">✅ Correct! Your result matches the expected output.</div>`;
     } else {
-      document.getElementById('userStatus').innerHTML = `<div class="status info">ℹ️ Query executed. Compare with Expected Result below.<br><small>${res.length} row(s)</small></div>`;
+      const diff = (exp && exp.ok) ? resultsDiffKind(res, exp.rows) : 'diff_data';
+      if (diff === 'diff_cols') {
+        document.getElementById('userStatus').innerHTML = `<div class="status info">ℹ️ Data matches, but column names differ.<br><small>Check your column aliases — the assignment may require specific names.</small></div>`;
+      } else {
+        document.getElementById('userStatus').innerHTML = `<div class="status info">ℹ️ Query executed. Compare with Expected Result below.<br><small>${res.length} row(s)</small></div>`;
+      }
     }
+    document.getElementById('expectedCard').classList.remove('hidden');
   }
 
-  document.getElementById('expectedCard').classList.remove('hidden');
   if (exp && exp.ok) {
     document.getElementById('expectedResult').innerHTML = resultToTable(exp.rows);
   } else if (exp) {
@@ -1270,7 +1295,7 @@ async function renderCheckResult(data) {
   const missing = data.missing || [];
   const total = data.total || (found.length + missing.length);
   if (missing.length === 0) {
-    html += `<div class="status ok">✅ Looks good! All expected keywords found.${data.ast_type ? ` <small>(ast: <code>${escapeHtml(data.ast_type)}</code>)</small>` : ''}</div>`;
+    html += `<div class="status ok">✅ Looks good! All expected keywords found.${data.ast_type ? ` <small style="color:var(--muted)">(detected: ${escapeHtml(data.ast_type)})</small>` : ''}</div>`;
   } else if (found.length === 0) {
     html += `<div class="status err">❌ No expected keywords found yet. Keep trying!</div>`;
   } else {
@@ -1282,11 +1307,11 @@ async function renderCheckResult(data) {
   if (missing.length) {
     html += `<p><strong>Missing (${missing.length}/${total}):</strong> <span style="color:var(--error)">${missing.map(escapeHtml).join(', ')}</span></p>`;
   }
-  if (data.tokens && data.tokens.length) {
-    html += `<p><small style="color:var(--muted)">Detected keywords: ${data.tokens.slice(0, 15).map(t => `<code>${escapeHtml(t)}</code>`).join(' ')}</small></p>`;
-  }
-  if (data.parse_error) {
-    html += `<p><small style="color:var(--error)">Parse note: ${escapeHtml(data.parse_error)}</small></p>`;
+  // Only show parse_error if keywords did NOT pass AND parse_error exists.
+  // This avoids confusing "Unexpected token" when PL/SQL is correct but sqlglot can't parse DECLARE blocks.
+  if (missing.length > 0 && data.parse_error) {
+    const shortErr = data.parse_error.split('\n')[0];
+    html += `<p><small style="color:var(--muted)">⚠️ Parser note: <em>${escapeHtml(shortErr)}</em> <span style="color:var(--muted)">— This tool validates keywords, not full Oracle PL/SQL execution.</span></small></p>`;
   }
   el.innerHTML = html;
 }
