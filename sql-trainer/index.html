@@ -861,49 +861,57 @@ const questions = [
     id:"t1", dataset:"none", title:"DDL: Vytvoření tabulky", tags:["DDL","CREATE TABLE"],
     text:"Napište příkaz CREATE TABLE pro tabulku Student (id INT PK, jmeno VARCHAR(50) NOT NULL, mesto VARCHAR(50)).",
     hint:`CREATE TABLE Student (id INTEGER PRIMARY KEY, jmeno TEXT NOT NULL, mesto TEXT);`,
-    executable:false
+    executable:false,
+    validation:{ mode:"keywords", required:["CREATE","TABLE","PRIMARY KEY","NOT NULL"] }
   },
   {
     id:"t2", dataset:"none", title:"DDL: Cizí klíč s CASCADE", tags:["DDL","ALTER TABLE"],
     text:"Napište příkaz, který do existující tabulky Zapsal (cisloS, zkratkaP) přidá cizí klíč na Student(cisloS) s ON DELETE CASCADE.",
     hint:`ALTER TABLE Zapsal ADD CONSTRAINT fk_zapsal_student FOREIGN KEY (cisloS) REFERENCES Student(cisloS) ON DELETE CASCADE;`,
-    executable:false
+    executable:false,
+    validation:{ mode:"keywords", required:["ALTER","TABLE","FOREIGN KEY","REFERENCES","ON DELETE","CASCADE"] }
   },
   {
     id:"t3", dataset:"none", title:"DCL: GRANT", tags:["DCL","GRANT"],
     text:"Napište příkaz, který uživateli 'user01' přidělí práva ke čtení a modifikaci tabulky Zbozi.",
     hint:`GRANT ALL ON Zbozi TO user01;`,
-    executable:false
+    executable:false,
+    validation:{ mode:"keywords", required:["GRANT","ON","TO"] }
   },
   {
     id:"t4", dataset:"none", title:"Teorie: SAVEPOINT", tags:["transaction"],
     text:"Vysvětlete, k čemu slouží SAVEPOINT v transakci a jak se liší od COMMIT.",
     hint:`SAVEPOINT vytvoří bod v rámci transakce, ke kterému lze se vrátit pomocí ROLLBACK TO SAVEPOINT. COMMIT trvale uloží všechny změny transakce do databáze a uvolní zámky.`,
-    executable:false
+    executable:false,
+    validation:{ mode:"keywords", required:["SAVEPOINT","ROLLBACK","COMMIT"] }
   },
   {
     id:"t5", dataset:"none", title:"Teorie: UNION vs UNION ALL", tags:["set operations"],
     text:"Jaký je rozdíl mezi UNION a UNION ALL?",
     hint:`UNION sjednotí výsledky dvou dotazů a odstraní duplicity. UNION ALL také sjednotí výsledky, ale ponechá duplicitní řádky. UNION ALL je rychlejší.`,
-    executable:false
+    executable:false,
+    validation:{ mode:"keywords", required:["UNION","ALL","duplicit"] }
   },
   {
     id:"t6", dataset:"none", title:"DDL: Trigger pro audit", tags:["trigger"],
     text:"Napište trigger, který při smazání záznamu z tabulky Rezervace uloží data do tabulky Rezervace_historie.",
     hint:`CREATE TRIGGER trig BEFORE DELETE ON Rezervace BEGIN INSERT INTO Rezervace_historie VALUES (:old.ID, :old.zkratkaP, :old.cisloU, :old.den, :old.zacatek, :old.konec); END;`,
-    executable:false
+    executable:false,
+    validation:{ mode:"keywords", required:["CREATE","TRIGGER","BEFORE","DELETE","ON","BEGIN","INSERT INTO","END"] }
   },
   {
     id:"t7", dataset:"none", title:"DCL: CURSOR", tags:["cursor","PL/SQL"],
     text:"Napište deklaraci kurzoru pro dotaz: Rezervace kterých předmětů začínají v pondělí ve 12:00? Uveďte i základní příkazy pro práci s kurzorem.",
     hint:`DECLARE CURSOR cur IS SELECT DISTINCT * FROM Rezervace WHERE den = 'pondeli' AND zacatek = '12:00'; BEGIN OPEN cur; FETCH cur INTO row_var; CLOSE cur; END;`,
-    executable:false
+    executable:false,
+    validation:{ mode:"keywords", required:["CURSOR","OPEN","FETCH","CLOSE","SELECT"] }
   },
   {
     id:"t8", dataset:"none", title:"DDL: Materializovaný pohled", tags:["materialized view"],
     text:"Napište příkaz pro vytvoření materializovaného pohledu obsahujícího počet prodejů jednotlivých zboží (kodZb, nazev, pocet_prodeju).",
     hint:`CREATE MATERIALIZED VIEW mv AS SELECT kodZb, nazev, COUNT(*) AS pocet_prodeju FROM Zbozi NATURAL JOIN Koupil GROUP BY kodZb, nazev; -- V Oracle lze přidat REFRESH ON COMMIT`,
-    executable:false
+    executable:false,
+    validation:{ mode:"keywords", required:["CREATE","MATERIALIZED VIEW","SELECT","COUNT"] }
   }
 ];
 
@@ -912,6 +920,21 @@ let SQL = null;
 let currentDb = null;
 let currentQuestion = null;
 let expectedResults = new Map(); // question id -> result object
+let serverAvailable = false; // set true if companion server.py is running
+
+// ── Probe for companion server ──
+(async function probeServer() {
+  try {
+    const res = await fetch('http://localhost:8787/api/health', { method: 'GET', signal: AbortSignal.timeout(800) });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.ok) serverAvailable = true;
+      if (data.sqlglot_available) console.log('sqlglot-enhanced validation available');
+    }
+  } catch (e) {
+    serverAvailable = false;
+  }
+})();
 
 // ================== HELPERS ==================
 function escapeHtml(s) {
@@ -1094,9 +1117,25 @@ function selectQuestion(q) {
       </div>
     `;
   } else {
+    const hasVal = !!q.validation;
     html += `
       <div class="card">
-        <h3>Hint / Answer</h3>
+        <h3>Your Answer</h3>
+        <div class="editor">
+          <textarea id="userSql" placeholder="Write your answer or SQL here (optional)..." oninput="localStorage.setItem('sql_' + currentQuestion.id, this.value)">${localStorage.getItem('sql_' + q.id) || ''}</textarea>
+          <div class="actions">
+            ${hasVal ? `<button class="btn" onclick="checkTheoryAnswer()">📋 Check Answer</button>` : ''}
+            <button class="btn secondary" onclick="showTheoryAnswer()">🎓 Show Answer</button>
+            <button class="btn secondary" onclick="resetQuestion()">Reset</button>
+          </div>
+        </div>
+      </div>
+      <div class="card hidden" id="theoryCheckCard">
+        <h3>Check Result</h3>
+        <div id="theoryCheckResult"></div>
+      </div>
+      <div class="card hidden" id="theoryAnswerCard">
+        <h3>Answer</h3>
         <div class="hint-box"><pre>${escapeHtml(q.hint)}</pre></div>
       </div>
     `;
@@ -1200,6 +1239,82 @@ window.runUserSql = function() {
 
 window.showHint = function() {
   document.getElementById('hintCard').classList.remove('hidden');
+};
+
+window.showTheoryAnswer = function() {
+  const card = document.getElementById('theoryAnswerCard');
+  if (card) card.classList.remove('hidden');
+};
+
+async function checkTheoryAnswerServer(q, text) {
+  try {
+    const res = await fetch('http://localhost:8787/api/validate-theory', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: q.id, text }),
+      signal: AbortSignal.timeout(1500)
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    return null;
+  }
+}
+
+async function renderCheckResult(data) {
+  const card = document.getElementById('theoryCheckCard');
+  card.classList.remove('hidden');
+  const el = document.getElementById('theoryCheckResult');
+  let html = '';
+  const found = data.found || [];
+  const missing = data.missing || [];
+  const total = data.total || (found.length + missing.length);
+  if (missing.length === 0) {
+    html += `<div class="status ok">✅ Looks good! All expected keywords found.${data.ast_type ? ` <small>(ast: <code>${escapeHtml(data.ast_type)}</code>)</small>` : ''}</div>`;
+  } else if (found.length === 0) {
+    html += `<div class="status err">❌ No expected keywords found yet. Keep trying!</div>`;
+  } else {
+    html += `<div class="status info">ℹ️ Partial match — some keywords found, some missing.</div>`;
+  }
+  if (found.length) {
+    html += `<p><strong>Found (${found.length}/${total}):</strong> <span style="color:var(--success)">${found.map(escapeHtml).join(', ')}</span></p>`;
+  }
+  if (missing.length) {
+    html += `<p><strong>Missing (${missing.length}/${total}):</strong> <span style="color:var(--error)">${missing.map(escapeHtml).join(', ')}</span></p>`;
+  }
+  if (data.tokens && data.tokens.length) {
+    html += `<p><small style="color:var(--muted)">Detected keywords: ${data.tokens.slice(0, 15).map(t => `<code>${escapeHtml(t)}</code>`).join(' ')}</small></p>`;
+  }
+  if (data.parse_error) {
+    html += `<p><small style="color:var(--error)">Parse note: ${escapeHtml(data.parse_error)}</small></p>`;
+  }
+  el.innerHTML = html;
+}
+
+window.checkTheoryAnswer = async function() {
+  const q = currentQuestion;
+  if (!q.validation) return;
+  const text = document.getElementById('userSql').value || '';
+  // try server first if available
+  if (serverAvailable) {
+    const data = await checkTheoryAnswerServer(q, text);
+    if (data) {
+      await renderCheckResult(data);
+      return;
+    }
+    // server failed mid-flight, mark unavailable
+    serverAvailable = false;
+  }
+  // local fallback
+  const upper = text.toUpperCase();
+  const required = q.validation.required || [];
+  const found = [];
+  const missing = [];
+  for (const kw of required) {
+    if (upper.includes(kw.toUpperCase())) found.push(kw);
+    else missing.push(kw);
+  }
+  await renderCheckResult({ found, missing, total: required.length, mode: 'local' });
 };
 
 window.resetQuestion = function() {

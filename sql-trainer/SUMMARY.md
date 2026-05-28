@@ -5,6 +5,7 @@
 - `validate.py` — runs all 55 executable hint SQLs against their datasets
 - `validate_consistency.py` — 34 FK/semantic/data-integrity checks
 - `review_report.md` — external review findings and resolutions
+- `analyze_theory.py` — keyword signatures for theory/DDL questions
 
 ## Datasets (6, reused across 55 executable + 8 theory questions)
 1. **Banka** — klient, pobocka, ucet, transakce (18 questions)
@@ -24,6 +25,7 @@
 - Row-order checker made order-agnostic via canonical sorting
 - DML/DDL detection added to prevent false-positive "Correct!" on non-SELECT statements
 - Deterministic `ORDER BY` tie-breaks added to `LIMIT 1` questions
+- **Keyword-based validation** for theory/DDL questions: checks student's answer against required keywords (e.g., `CURSOR`, `OPEN`, `FETCH`, `CLOSE`) before showing the reference answer
 
 ## How to use
 Open `index.html` in a browser (or serve via `python -m http.server`).
