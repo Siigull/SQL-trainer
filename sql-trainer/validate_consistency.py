@@ -252,6 +252,28 @@ INSERT INTO dodava VALUES(1,5,7343);
 INSERT INTO dodava VALUES(7,3,6483);
 INSERT INTO dodava VALUES(3,4,8520);
 INSERT INTO dodava VALUES(3,8,3805);
+""",
+    "rezervace": """
+PRAGMA foreign_keys = ON;
+DROP TABLE IF EXISTS Rezervace_historie;
+DROP TABLE IF EXISTS Rezervace;
+DROP TABLE IF EXISTS Predmet;
+DROP TABLE IF EXISTS Ucebna;
+CREATE TABLE Predmet (zkratkaP TEXT PRIMARY KEY, nazev TEXT NOT NULL);
+CREATE TABLE Ucebna (cisloU INTEGER PRIMARY KEY, typ TEXT, pocet_mist INTEGER);
+CREATE TABLE Rezervace (ID INTEGER PRIMARY KEY, zkratkaP TEXT REFERENCES Predmet, cisloU INTEGER REFERENCES Ucebna, den TEXT, zacatek TEXT, konec TEXT);
+CREATE TABLE Rezervace_historie (ID INTEGER, zkratkaP TEXT, cisloU INTEGER, den TEXT, zacatek TEXT, konec TEXT);
+INSERT INTO Predmet VALUES ('IMA','Matematika');
+INSERT INTO Predmet VALUES ('ISS','Signaly');
+INSERT INTO Predmet VALUES ('IOS','Operacni systemy');
+INSERT INTO Ucebna VALUES (1,'PC ucebna',30);
+INSERT INTO Ucebna VALUES (2,'Prednaskova',120);
+INSERT INTO Ucebna VALUES (3,'PC ucebna',25);
+INSERT INTO Rezervace VALUES (1,'IMA',1,'pondeli','08:00','09:50');
+INSERT INTO Rezervace VALUES (2,'ISS',2,'pondeli','12:00','13:50');
+INSERT INTO Rezervace VALUES (3,'IOS',3,'utery','10:00','11:50');
+INSERT INTO Rezervace VALUES (4,'IMA',1,'streda','12:00','13:50');
+INSERT INTO Rezervace VALUES (5,'ISS',3,'ctvrtek','14:00','15:50');
 """
 }
 
@@ -293,6 +315,8 @@ SEMANTIC = [
     ("dodavatele", "SELECT COUNT(*) FROM (SELECT kod FROM dodava GROUP BY kod HAVING COUNT(*) = 1)", [(1,)], "1 product from exactly 1 supplier"),
     ("banka", "SELECT COUNT(*) FROM (SELECT k.r_cislo FROM klient k JOIN ucet u ON k.r_cislo = u.r_cislo WHERE k.mesto <> 'Brno' GROUP BY k.r_cislo HAVING SUM(u.stav) > (SELECT MAX(tot) FROM (SELECT SUM(stav) AS tot FROM klient k2 JOIN ucet u2 ON k2.r_cislo = u2.r_cislo WHERE k2.mesto = 'Brno' GROUP BY k2.r_cislo) t))", [(1,)], "1 non-Brno client with balance > all Brno clients"),
     ("servis", "SELECT COUNT(*) FROM (SELECT m.cisloM FROM mechanik m JOIN oprava o ON m.cisloM = o.cisloM GROUP BY m.cisloM, m.meno HAVING COUNT(DISTINCT o.typ) = 3)", [(1,)], "1 mechanic with all 3 repair types"),
+    ("rezervace", "SELECT COUNT(*) FROM Rezervace WHERE den = 'pondeli' AND zacatek = '12:00'", [(1,)], "1 reservation on monday at 12:00"),
+    ("rezervace", "SELECT COUNT(*) FROM Rezervace_historie", [(0,)], "0 rows in history table initially"),
 ]
 
 def run():

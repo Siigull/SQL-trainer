@@ -71,6 +71,11 @@ QUESTIONS = {
         "required": ["CREATE", "MATERIALIZED VIEW", "SELECT", "COUNT"],
         "sql_dialect": "oracle",
     },
+    "t8": {
+        "title": "DDL: Materializovaný pohled",
+        "required": ["CREATE", "MATERIALIZED VIEW", "SELECT", "COUNT"],
+        "sql_dialect": "oracle",
+    },
 }
 
 
