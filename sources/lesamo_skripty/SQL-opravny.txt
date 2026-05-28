@@ -1,0 +1,44 @@
+/*
+Uvažujte část relační databáze pro evidenci pravidelné výuky v učebnách s tabulkami Predmet (zkratkaP, nazev),
+Rezervace (ID, zkratkaP, cisloU, den, zacatek, konec) a Ucebna (cisloU, typ, pocet_mist). O předmětu ukládáme jeho
+zkratku a název, o učebně její číslo, typ a počet míst. V tabulce Rezervace jsou uloženy rezervace daných učeben pro
+dané předměty včetně dne v týdnu a času začátku a konce. Primární klíče tabulek jsou zvýrazněny.
+Zapište v SQL následující dotazy (seznam sloupců v závorce udává požadovaný tvar výsledku) a příkazy:
+*/
+
+/*a) Kolik mají jednotlivé předměty rezervací v učebnách typu „PC učebna“? (zkratkaP, nazev, pocet_rezervaci).
+Vypište včetně předmětů, které v učebnách daného typu žádné rezervace nemají. 2,5 bodu*/
+
+-- opravené: LEFT NATURAL JOIN namiesto NATURAL JOIN
+SELECT zkratkaP, nazev, COUNT(*) pocet_rezervaci FROM Predmet LEFT NATURAL JOIN Rezervace NATURAL JOIN Ucebna WHERE U.typ = 'PC učebna' GROUP BY zkratkaP, nazev;
+
+/*b) Ve kterých předmětech neprobíhá žádná výuka před 9. hodinou ranní? (zkratkaP, nazev) Čas předpokládejte ve
+formátu HH:MM. Práci s typem DATE neuvažujte. 2,5 bodu */
+
+-- opravené: namiesto SELECT * má byť SELECT zkratkaP, nazev
+SELECT zkratkaP, nazev FROM Predmet P WHERE NOT EXISTS (SELECT * FROM Rezervace R WHERE zacatek <= '09:00' AND R.zkratkaP = P.zkratkaP);
+
+/*c) Ve kterých učebnách (cisloU, typ, pocet_mist) jsou zadány rezervace pouze předmětů, jejichž název obsahuje
+podřetězec „programování“? 3 body*/
+SELECT cisloU, typ, pocet_mist FROM Ucebna WHERE NOT EXISTS (SELECT * FROM Rezervace NATURAL JOIN Predmet WHERE nazev NOT LIKE '%programování%' AND Ucebna.cisloU = Rezervace.cisloU);
+
+-- vyberame tie ucebne kde neexistuje ziadna rezervacia na predmet ktory neobsahuje podřetězec „programování“
+
+/*d) Předpokládejte existenci tabulky Rezervace_historie, která má stejné schéma jako tabulka Rezervace. Napište
+příkaz pro vytvoření databázového triggeru, který při smazání záznamu z tabulky Rezervace uloží informace
+z tohoto záznamu do tabulky Rezervace_historie. 3 body*/
+CREATE TRIGGER trig
+BEFORE DELETE ON Rezervace
+BEGIN
+    INSERT INTO Rezervace_historie VALUES :old;
+END trig;
+
+/*e) Napište příkaz SQL pro deklaraci kurzoru, který umožní přístup k výsledku dotazu: „Rezervace kterých předmětů
+začínají v pondělí ve 12:00?“ (s odstraněním duplicit) (2 body) Dále uveďte další příkazy SQL, prostřednictvím
+kterých se obsah zpřístupní. U každého z nich napište, co musí obsahovat a k čemu slouží. (2 body) 4 body*/
+CURSOR cur IS (SELECT DISTINCT * FROM Rezervace WHERE den = 'pondeli' AND zacatek = '12:00');
+
+OPEN cur;
+FETCH cur INTO aktualnyStav;
+CLOSE cur;
+EXIT WHEN cur%NOTFOUND

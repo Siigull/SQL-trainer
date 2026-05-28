@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SQL Trainer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --sidebar-bg: #1e293b;
+      --sidebar-fg: #cbd5e1;
+      --card-bg: #ffffff;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --success: #16a34a;
+      --error: #dc2626;
+      --warn: #ca8a04;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --muted: #64748b;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; background: var(--bg); color: var(--text); }
+    #app { display: flex; height: 100vh; overflow: hidden; }
+    aside { width: 280px; background: var(--sidebar-bg); color: var(--sidebar-fg); display: flex; flex-direction: column; overflow: hidden; }
+    aside h1 { margin: 0; padding: 16px; font-size: 18px; border-bottom: 1px solid #334155; }
+    .search { padding: 10px 14px 4px; }
+    .search input { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; }
+    .randbar { padding: 6px 14px 10px; }
+    .randbar button { width: 100%; padding: 8px; border-radius: 8px; border: none; background: var(--accent); color: #fff; font-weight: 700; cursor: pointer; font-size: 13px; }
+    .randbar button:hover { background: var(--accent-hover); }
+    .qlist { flex: 1; overflow-y: auto; padding: 8px; }
+    .group { margin-bottom: 8px; }
+    .group-title { font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 10px 4px; color: #94a3b8; }
+    .qitem { padding: 8px 10px; margin: 2px 0; border-radius: 8px; cursor: pointer; font-size: 13px; line-height: 1.35; }
+    .qitem:hover { background: #334155; }
+    .qitem.active { background: var(--accent); color: #fff; }
+    .qitem .tag { font-size: 11px; opacity: 0.8; margin-top: 2px; }
+    main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    header { background: var(--card-bg); border-bottom: 1px solid var(--border); padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; }
+    header h2 { margin: 0; font-size: 16px; }
+    .pills { display: flex; gap: 8px; }
+    .pill { font-size: 12px; padding: 4px 10px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border); color: var(--muted); }
+    .content { flex: 1; overflow-y: auto; padding: 20px; }
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    .card h3 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+    .assignment { font-size: 15px; line-height: 1.6; }
+    .tabs { display: flex; gap: 4px; margin-bottom: 10px; }
+    .tab { padding: 8px 14px; border: 1px solid var(--border); background: var(--bg); border-radius: 8px 8px 0 0; cursor: pointer; font-size: 13px; }
+    .tab.active { background: var(--card-bg); border-bottom-color: var(--card-bg); font-weight: 700; }
+    .editor { display: flex; flex-direction: column; gap: 8px; }
+    textarea { width: 100%; min-height: 120px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 13px; padding: 12px; border-radius: 8px; border: 1px solid var(--border); resize: vertical; }
+    .btn { padding: 8px 14px; border: none; border-radius: 8px; background: var(--accent); color: #fff; cursor: pointer; font-weight: 600; }
+    .btn:hover { background: var(--accent-hover); }
+    .btn.secondary { background: #e2e8f0; color: var(--text); }
+    .btn.secondary:hover { background: #cbd5e1; }
+    .actions { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; }
+    th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+    th { background: var(--bg); font-weight: 600; }
+    tr:nth-child(even) td { background: #f8fafc; }
+    .schema { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+    .schema-table { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .schema-title { background: var(--bg); padding: 8px 10px; font-weight: 700; font-size: 13px; border-bottom: 1px solid var(--border); }
+    .schema-row { padding: 6px 10px; font-size: 12px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; }
+    .schema-row:last-child { border-bottom: none; }
+    .pk { color: var(--accent); font-weight: 700; }
+    .fk { color: var(--warn); }
+    .hint-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px; }
+    .hint-box pre { margin: 0; font-family: ui-monospace, monospace; font-size: 13px; overflow-x: auto; }
+    .result-box { margin-top: 10px; }
+    .status { padding: 10px 12px; border-radius: 8px; font-weight: 600; margin-bottom: 10px; font-size: 13px; }
+    .status.ok { background: #dcfce7; color: #14532d; border: 1px solid #86efac; }
+    .status.err { background: #fee2e2; color: #7f1d1d; border: 1px solid #fca5a5; }
+    .status.info { background: #eff6ff; color: #1e3a8a; border: 1px solid #bfdbfe; }
+    .hidden { display: none; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+    .loading { color: var(--muted); font-size: 13px; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <aside>
+    <h1>🛠️ SQL Trainer</h1>
+    <div class="search"><input id="search" placeholder="Search questions..."></div>
+    <div class="randbar"><button onclick="pickRandomQuestion()">🎲 Random Question</button></div>
+    <div class="qlist" id="qlist"></div>
+  </aside>
+  <main>
+    <header>
+      <h2 id="qtitle">Select a question</h2>
+      <div class="pills" id="qpills"></div>
+    </header>
+    <div class="content" id="content">
+      <div class="card">
+        <div class="assignment">Choose a question from the sidebar to begin training.</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ================== DATASETS ==================
+const datasets = {
+  banka: {
+    name: "Banka",
+    init: `
+      PRAGMA foreign_keys = ON;
+      DROP TABLE IF EXISTS transakce;
+      DROP TABLE IF EXISTS ucet;
+      DROP TABLE IF EXISTS pobocka;
+      DROP TABLE IF EXISTS klient;
+      CREATE TABLE klient (
+        r_cislo TEXT PRIMARY KEY,
+        jmeno TEXT NOT NULL,
+        ulice TEXT,
+        mesto TEXT
+      );
+      CREATE TABLE pobocka (
+        nazev TEXT PRIMARY KEY,
+        jmeni INTEGER
+      );
+      CREATE TABLE ucet (
+        c_uctu INTEGER PRIMARY KEY,
+        stav REAL,
+        r_cislo TEXT NOT NULL REFERENCES klient ON DELETE CASCADE,
+        pobocka TEXT REFERENCES pobocka
+      );
+      CREATE TABLE transakce (
+        c_uctu INTEGER,
+        c_transakce INTEGER,
+        datum TEXT,
+        castka REAL,
+        PRIMARY KEY (c_uctu, c_transakce),
+        FOREIGN KEY (c_uctu) REFERENCES ucet ON DELETE CASCADE
+      );
+      INSERT INTO klient VALUES('440726/0672','Jan Novak','Cejl 8','Brno');
+      INSERT INTO klient VALUES('530610/4532','Petr Vesely','Podzimni 28','Brno');
+      INSERT INTO klient VALUES('601001/2218','Ivan Zeman','Cejl 8','Brno');
+      INSERT INTO klient VALUES('510230/0048','Pavel Tomek','Tomkova 34','Brno');
+      INSERT INTO klient VALUES('580807/9638','Josef Moudry','Svatoplukova 15','Brno');
+      INSERT INTO klient VALUES('625622/6249','Jana Mala','Brnenska 56','Vyskov');
+      INSERT INTO klient VALUES('491120/0423','Jiri Novak',NULL,'Brno');
+      INSERT INTO pobocka VALUES('Janska',10000000);
+      INSERT INTO pobocka VALUES('Palackeho',5000000);
+      INSERT INTO ucet VALUES(4320286,52000,'440726/0672','Janska');
+      INSERT INTO ucet VALUES(2348531,10000,'530610/4532','Janska');
+      INSERT INTO ucet VALUES(1182648,10853,'530610/4532','Palackeho');
+      INSERT INTO ucet VALUES(2075752,26350,'440726/0672','Palackeho');
+      INSERT INTO ucet VALUES(1182649,40000,'530610/4532','Janska');
+      INSERT INTO ucet VALUES(4520111,40000,'580807/9638','Janska');
+      INSERT INTO ucet VALUES(4520112,40000,'580807/9638','Janska');
+      INSERT INTO ucet VALUES(9999999,90000,'625622/6249','Palackeho');
+      INSERT INTO transakce VALUES(4320286,1,'1998-10-10',3000);
+      INSERT INTO transakce VALUES(4320286,2,'1998-10-12',-5000);
+      INSERT INTO transakce VALUES(2075752,1,'1998-10-14',-2000);
+      INSERT INTO transakce VALUES(2075752,2,'1998-10-14',10000);
+      INSERT INTO transakce VALUES(2348531,1,'1998-10-15',5000);
+      INSERT INTO transakce VALUES(1182648,1,'1998-10-16',-1000);
+      INSERT INTO transakce VALUES(1182648,2,'1998-11-01',20000);
+    `,
+    schema: {
+      klient: [
+        {name:"r_cislo", type:"TEXT", pk:true},
+        {name:"jmeno", type:"TEXT", notNull:true},
+        {name:"ulice", type:"TEXT"},
+        {name:"mesto", type:"TEXT"}
+      ],
+      pobocka: [
+        {name:"nazev", type:"TEXT", pk:true},
+        {name:"jmeni", type:"INTEGER"}
+      ],
+      ucet: [
+        {name:"c_uctu", type:"INTEGER", pk:true},
+        {name:"stav", type:"REAL"},
+        {name:"r_cislo", type:"TEXT", fk:"klient"},
+        {name:"pobocka", type:"TEXT", fk:"pobocka"}
+      ],
+      transakce: [
+        {name:"c_uctu", type:"INTEGER", fk:"ucet"},
+        {name:"c_transakce", type:"INTEGER"},
+        {name:"datum", type:"TEXT"},
+        {name:"castka", type:"REAL"},
+        {constraint:"PK(c_uctu, c_transakce)"}
+      ]
+    }
+  },
+  obchod: {
+    name: "Obchod",
+    init: `
+      PRAGMA foreign_keys = ON;
+      DROP TABLE IF EXISTS koupil;
+      DROP TABLE IF EXISTS zbozi;
+      DROP TABLE IF EXISTS zakaznik;
+      CREATE TABLE zakaznik (
+        cisloZ INTEGER PRIMARY KEY,
+        jmeno TEXT,
+        dat_nar TEXT,
+        mesto TEXT
+      );
+      CREATE TABLE zbozi (
+        kodZb INTEGER PRIMARY KEY,
+        nazev TEXT,
+        kategorie TEXT,
+        vyrobce TEXT
+      );
+      CREATE TABLE koupil (
+        cisloZ INTEGER REFERENCES zakaznik,
+        kodZb INTEGER REFERENCES zbozi,
+        datum TEXT,
+        cena INTEGER,
+        PRIMARY KEY (cisloZ, kodZb)
+      );
+      INSERT INTO zakaznik VALUES(1,'Samuel','1999-02-02','Brno');
+      INSERT INTO zakaznik VALUES(2,'Emanuel','1999-01-03','Brno');
+      INSERT INTO zakaznik VALUES(3,'Richard','2002-12-12','Brno');
+      INSERT INTO zakaznik VALUES(4,'Eva','2001-01-01','Praha');
+      INSERT INTO zakaznik VALUES(5,'Anna','1985-06-15','Praha');
+      INSERT INTO zakaznik VALUES(6,'Martin','1995-03-20','Ostrava');
+      INSERT INTO zakaznik VALUES(7,'Tereza','2000-01-01','Plzen');
+      INSERT INTO zbozi VALUES(1,'Samsung A20','mobily','Samsung');
+      INSERT INTO zbozi VALUES(2,'Benq 1000mq','monitory','Benq');
+      INSERT INTO zbozi VALUES(3,'iPhone X','mobily','Apple');
+      INSERT INTO zbozi VALUES(4,'MacBook Pro','notebooky','Apple');
+      INSERT INTO zbozi VALUES(5,'Dell UltraSharp','monitory','Dell');
+      INSERT INTO zbozi VALUES(6,'Sony WH-1000','sluchatka','Sony');
+      INSERT INTO zbozi VALUES(7,'iPad Air','tablety','Apple');
+      INSERT INTO zbozi VALUES(8,'Logitech MX','prislusenstvi','Logitech');
+      INSERT INTO zbozi VALUES(9,'Samsung S21','mobily','Samsung');
+      INSERT INTO zbozi VALUES(10,'LG 4K','monitory','LG');
+      INSERT INTO koupil VALUES(1,1,'2020-05-05',1200);
+      INSERT INTO koupil VALUES(2,1,'2020-05-05',800);
+      INSERT INTO koupil VALUES(3,1,'2020-05-05',1000);
+      INSERT INTO koupil VALUES(4,3,'2020-05-05',800);
+      INSERT INTO koupil VALUES(3,3,'2020-05-05',1000);
+      INSERT INTO koupil VALUES(2,2,'2019-05-05',1200);
+      INSERT INTO koupil VALUES(1,2,'2019-06-05',1000);
+      INSERT INTO koupil VALUES(4,2,'2019-06-07',800);
+      INSERT INTO koupil VALUES(5,4,'2020-01-10',45000);
+      INSERT INTO koupil VALUES(6,5,'2020-02-15',8000);
+      INSERT INTO koupil VALUES(1,9,'2020-03-10',25000);
+      INSERT INTO koupil VALUES(2,9,'2020-03-11',24500);
+      INSERT INTO koupil VALUES(3,6,'2020-04-01',5000);
+      INSERT INTO koupil VALUES(4,7,'2020-04-02',12000);
+      INSERT INTO koupil VALUES(5,8,'2020-04-03',2000);
+      INSERT INTO koupil VALUES(6,10,'2019-07-20',15000);
+      INSERT INTO koupil VALUES(1,4,'2019-08-10',42000);
+      INSERT INTO koupil VALUES(3,5,'2019-09-05',7500);
+    `,
+    schema: {
+      zakaznik: [
+        {name:"cisloZ", type:"INTEGER", pk:true},
+        {name:"jmeno", type:"TEXT"},
+        {name:"dat_nar", type:"TEXT"},
+        {name:"mesto", type:"TEXT"}
+      ],
+      zbozi: [
+        {name:"kodZb", type:"INTEGER", pk:true},
+        {name:"nazev", type:"TEXT"},
+        {name:"kategorie", type:"TEXT"},
+        {name:"vyrobce", type:"TEXT"}
+      ],
+      koupil: [
+        {name:"cisloZ", type:"INTEGER", fk:"zakaznik"},
+        {name:"kodZb", type:"INTEGER", fk:"zbozi"},
+        {name:"datum", type:"TEXT"},
+        {name:"cena", type:"INTEGER"},
+        {constraint:"PK(cisloZ, kodZb)"}
+      ]
+    }
+  },
+  univerzita: {
+    name: "Univerzita",
+    init: `
+      PRAGMA foreign_keys = ON;
+      DROP TABLE IF EXISTS zapsal;
+      DROP TABLE IF EXISTS student;
+      DROP TABLE IF EXISTS predmet;
+      CREATE TABLE predmet (
+        zkratkaP TEXT PRIMARY KEY,
+        nazev TEXT NOT NULL,
+        kredity INTEGER NOT NULL
+      );
+      CREATE TABLE student (
+        cisloS INTEGER PRIMARY KEY,
+        jmeno TEXT NOT NULL,
+        mesto TEXT NOT NULL
+      );
+      CREATE TABLE zapsal (
+        cisloS INTEGER REFERENCES student,
+        zkratkaP TEXT REFERENCES predmet,
+        ak_rok INTEGER,
+        body INTEGER NOT NULL,
+        PRIMARY KEY (cisloS, zkratkaP, ak_rok)
+      );
+      INSERT INTO predmet VALUES('IMA','Matematika',50);
+      INSERT INTO predmet VALUES('ISS','Signaly',30);
+      INSERT INTO predmet VALUES('IOS','Operacni systemy',4);
+      INSERT INTO predmet VALUES('IDB','Databaze',60);
+      INSERT INTO predmet VALUES('IPK','Pocitacove komunikace',40);
+      INSERT INTO predmet VALUES('IEL','Elektronika',30);
+      INSERT INTO predmet VALUES('FYZ','Fyzika',40);
+      INSERT INTO student VALUES(1,'Pavel','Brno');
+      INSERT INTO student VALUES(2,'Pavel','Bratislava');
+      INSERT INTO student VALUES(3,'Peter','Bratislava');
+      INSERT INTO student VALUES(4,'Adam Novy','Praha');
+      INSERT INTO student VALUES(5,'Marie','Brno');
+      INSERT INTO student VALUES(6,'Jana','Praha');
+      INSERT INTO student VALUES(7,'Karel','Ostrava');
+      INSERT INTO student VALUES(8,'Eva','Brno');
+      INSERT INTO zapsal VALUES(1,'IMA',2021,95);
+      INSERT INTO zapsal VALUES(1,'ISS',2021,95);
+      INSERT INTO zapsal VALUES(1,'IOS',2021,85);
+      INSERT INTO zapsal VALUES(2,'IOS',2021,55);
+      INSERT INTO zapsal VALUES(2,'IMA',2021,55);
+      INSERT INTO zapsal VALUES(2,'IPK',2021,70);
+      INSERT INTO zapsal VALUES(3,'IMA',2021,50);
+      INSERT INTO zapsal VALUES(3,'ISS',2021,34);
+      INSERT INTO zapsal VALUES(3,'IDB',2021,88);
+      INSERT INTO zapsal VALUES(4,'IEL',2021,92);
+      INSERT INTO zapsal VALUES(4,'IDB',2021,75);
+      INSERT INTO zapsal VALUES(5,'IMA',2021,80);
+      INSERT INTO zapsal VALUES(5,'ISS',2021,65);
+      INSERT INTO zapsal VALUES(5,'IOS',2021,90);
+      INSERT INTO zapsal VALUES(5,'IEL',2021,78);
+      INSERT INTO zapsal VALUES(6,'IDB',2021,60);
+      INSERT INTO zapsal VALUES(6,'IPK',2021,45);
+      INSERT INTO zapsal VALUES(7,'IOS',2021,30);
+    `,
+    schema: {
+      predmet: [
+        {name:"zkratkaP", type:"TEXT", pk:true},
+        {name:"nazev", type:"TEXT", notNull:true},
+        {name:"kredity", type:"INTEGER", notNull:true}
+      ],
+      student: [
+        {name:"cisloS", type:"INTEGER", pk:true},
+        {name:"jmeno", type:"TEXT", notNull:true},
+        {name:"mesto", type:"TEXT", notNull:true}
+      ],
+      zapsal: [
+        {name:"cisloS", type:"INTEGER", fk:"student"},
+        {name:"zkratkaP", type:"TEXT", fk:"predmet"},
+        {name:"ak_rok", type:"INTEGER"},
+        {name:"body", type:"INTEGER", notNull:true},
+        {constraint:"PK(cisloS, zkratkaP, ak_rok)"}
+      ]
+    }
+  },
+  firma: {
+    name: "Firma",
+    init: `
+      PRAGMA foreign_keys = ON;
+      DROP TABLE IF EXISTS zamestnanec;
+      DROP TABLE IF EXISTS oddeleni;
+      CREATE TABLE oddeleni (
+        nazov TEXT PRIMARY KEY,
+        popis TEXT
+      );
+      CREATE TABLE zamestnanec (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        mzda INTEGER NOT NULL CHECK(mzda >= 0),
+        meno TEXT NOT NULL,
+        oddelenie TEXT NOT NULL REFERENCES oddeleni(nazov) ON DELETE CASCADE,
+        vedeneOddelenie TEXT NULL REFERENCES oddeleni(nazov)
+      );
+      INSERT INTO oddeleni VALUES('Ekonomicke','Vyplaty a dane');
+      INSERT INTO oddeleni VALUES('Personalne','Najimanie ludi');
+      INSERT INTO oddeleni VALUES('Marketingove','Komunikacia so zakaznikmi a reklamou');
+      INSERT INTO oddeleni VALUES('Analyticke','Zber a spracovanie dat');
+      INSERT INTO oddeleni VALUES('IT','Podpora systemov a vyvoj');
+      INSERT INTO zamestnanec VALUES(NULL,3000,'Monika','Ekonomicke','Ekonomicke');
+      INSERT INTO zamestnanec VALUES(NULL,1800,'Emma','Ekonomicke',NULL);
+      INSERT INTO zamestnanec VALUES(NULL,3200,'Lucia','Personalne','Personalne');
+      INSERT INTO zamestnanec VALUES(NULL,2800,'Michal','Personalne',NULL);
+      INSERT INTO zamestnanec VALUES(NULL,3000,'Samuel','Marketingove','Marketingove');
+      INSERT INTO zamestnanec VALUES(NULL,1200,'Ella','Marketingove',NULL);
+      INSERT INTO zamestnanec VALUES(NULL,2500,'Jan','Analyticke',NULL);
+      INSERT INTO zamestnanec VALUES(NULL,3500,'Igor','Analyticke','Analyticke');
+      INSERT INTO zamestnanec VALUES(NULL,4500,'Dana','IT','IT');
+      INSERT INTO zamestnanec VALUES(NULL,2200,'Tomas','IT',NULL);
+      INSERT INTO zamestnanec VALUES(NULL,5000,'Petra','Ekonomicke',NULL);
+      INSERT INTO zamestnanec VALUES(NULL,4000,'Lukas','IT',NULL);
+    `,
+    schema: {
+      oddeleni: [
+        {name:"nazov", type:"TEXT", pk:true},
+        {name:"popis", type:"TEXT"}
+      ],
+      zamestnanec: [
+        {name:"id", type:"INTEGER", pk:true, auto:true},
+        {name:"mzda", type:"INTEGER", notNull:true},
+        {name:"meno", type:"TEXT", notNull:true},
+        {name:"oddelenie", type:"TEXT", fk:"oddeleni", notNull:true},
+        {name:"vedeneOddelenie", type:"TEXT", fk:"oddeleni", nullable:true}
+      ]
+    }
+  },
+  servis: {
+    name: "Auto servis",
+    init: `
+      PRAGMA foreign_keys = ON;
+      DROP TABLE IF EXISTS oprava;
+      DROP TABLE IF EXISTS auto;
+      DROP TABLE IF EXISTS mechanik;
+      CREATE TABLE mechanik (
+        cisloM INTEGER PRIMARY KEY,
+        meno TEXT NOT NULL
+      );
+      CREATE TABLE auto (
+        spz INTEGER PRIMARY KEY,
+        znacka TEXT NOT NULL,
+        r_vyroby INTEGER NOT NULL
+      );
+      CREATE TABLE oprava (
+        cisloO INTEGER PRIMARY KEY AUTOINCREMENT,
+        cisloM INTEGER REFERENCES mechanik,
+        spz INTEGER REFERENCES auto NOT NULL,
+        datum TEXT NOT NULL,
+        cena INTEGER NOT NULL,
+        typ TEXT NOT NULL
+      );
+      INSERT INTO mechanik VALUES(69,'Adam');
+      INSERT INTO mechanik VALUES(42,'Betka');
+      INSERT INTO mechanik VALUES(33,'Cyril');
+      INSERT INTO mechanik VALUES(77,'Dana');
+      INSERT INTO mechanik VALUES(55,'Erik');
+      INSERT INTO auto VALUES(123,'Ford',2005);
+      INSERT INTO auto VALUES(999,'Volvo',2000);
+      INSERT INTO auto VALUES(555,'Skoda',2015);
+      INSERT INTO auto VALUES(777,'BMW',2018);
+      INSERT INTO auto VALUES(888,'Audi',2020);
+      INSERT INTO auto VALUES(444,'Ford',2010);
+      INSERT INTO auto VALUES(333,'Volvo',2012);
+      INSERT INTO auto VALUES(222,'Skoda',2008);
+      INSERT INTO oprava VALUES(NULL,69,123,'2022-03-28',100000,'vymena');
+      INSERT INTO oprava VALUES(NULL,42,999,'2022-03-28',25000,'brzdy');
+      INSERT INTO oprava VALUES(NULL,42,999,'2022-03-29',50001,'vymena');
+      INSERT INTO oprava VALUES(NULL,42,999,'2022-03-30',58000,'vymena');
+      INSERT INTO oprava VALUES(NULL,33,555,'2022-04-01',15000,'oprava');
+      INSERT INTO oprava VALUES(NULL,33,777,'2022-04-02',22000,'brzdy');
+      INSERT INTO oprava VALUES(NULL,77,888,'2022-04-03',35000,'vymena');
+      INSERT INTO oprava VALUES(NULL,55,444,'2022-04-04',8000,'oprava');
+      INSERT INTO oprava VALUES(NULL,69,333,'2022-04-05',45000,'vymena');
+      INSERT INTO oprava VALUES(NULL,42,222,'2022-04-06',12000,'brzdy');
+      INSERT INTO oprava VALUES(NULL,33,123,'2022-04-07',9500,'vymena');
+      INSERT INTO oprava VALUES(NULL,77,555,'2022-04-08',18000,'vymena');
+      INSERT INTO oprava VALUES(NULL,55,999,'2022-04-09',32000,'brzdy');
+      INSERT INTO oprava VALUES(NULL,69,777,'2022-04-10',28000,'oprava');
+      INSERT INTO oprava VALUES(NULL,42,888,'2022-04-11',60000,'vymena');
+    `,
+    schema: {
+      mechanik: [
+        {name:"cisloM", type:"INTEGER", pk:true},
+        {name:"meno", type:"TEXT", notNull:true}
+      ],
+      auto: [
+        {name:"spz", type:"INTEGER", pk:true},
+        {name:"znacka", type:"TEXT", notNull:true},
+        {name:"r_vyroby", type:"INTEGER", notNull:true}
+      ],
+      oprava: [
+        {name:"cisloO", type:"INTEGER", pk:true, auto:true},
+        {name:"cisloM", type:"INTEGER", fk:"mechanik"},
+        {name:"spz", type:"INTEGER", fk:"auto", notNull:true},
+        {name:"datum", type:"TEXT", notNull:true},
+        {name:"cena", type:"INTEGER", notNull:true},
+        {name:"typ", type:"TEXT", notNull:true}
+      ]
+    }
+  },
+  dodavatele: {
+    name: "Dodavatele",
+    init: `
+      PRAGMA foreign_keys = ON;
+      DROP TABLE IF EXISTS dodava;
+      DROP TABLE IF EXISTS zbozi;
+      DROP TABLE IF EXISTS dodavatel;
+      CREATE TABLE dodavatel (
+        ico INTEGER PRIMARY KEY,
+        nazev TEXT,
+        mesto TEXT,
+        vzdalenost INTEGER
+      );
+      CREATE TABLE zbozi (
+        kod INTEGER PRIMARY KEY,
+        nazev TEXT,
+        vyrobce TEXT
+      );
+      CREATE TABLE dodava (
+        ico INTEGER REFERENCES dodavatel,
+        kod INTEGER REFERENCES zbozi,
+        cena INTEGER,
+        PRIMARY KEY (ico, kod)
+      );
+      INSERT INTO dodavatel VALUES(0,'CojavimCorp','Olomouc',67);
+      INSERT INTO dodavatel VALUES(1,'Stark','Kromeriz',125);
+      INSERT INTO dodavatel VALUES(2,'Dodavatel od vedle','Kromeriz',12);
+      INSERT INTO dodavatel VALUES(3,'AiAi','Hradec Kralove',91);
+      INSERT INTO dodavatel VALUES(4,'Datemer','Hradec Kralove',350);
+      INSERT INTO dodavatel VALUES(5,'Elektromadar','Kromeriz',261);
+      INSERT INTO dodavatel VALUES(6,'Hae','Praha',311);
+      INSERT INTO dodavatel VALUES(7,'Petr','Olomouc',237);
+      INSERT INTO dodavatel VALUES(8,'Elektro plus','Brno',68);
+      INSERT INTO dodavatel VALUES(9,'Zeus','Hradec Kralove',85);
+      INSERT INTO zbozi VALUES(0,'HD 30 GB','Kingston');
+      INSERT INTO zbozi VALUES(1,'Flashka 3000','Kingston');
+      INSERT INTO zbozi VALUES(2,'HD monitor','Kingston');
+      INSERT INTO zbozi VALUES(3,'Televize ako stena','Sony');
+      INSERT INTO zbozi VALUES(4,'Nejakej mobil','Panasonic');
+      INSERT INTO zbozi VALUES(5,'Ultrahyperturbo vysavac','Panasonic');
+      INSERT INTO zbozi VALUES(6,'proste jmeno produktu','Sony');
+      INSERT INTO zbozi VALUES(7,'Modra lampicka','Samsung');
+      INSERT INTO zbozi VALUES(8,'Draha krabice','Sony');
+      INSERT INTO zbozi VALUES(9,'Notebook','Samsung');
+      INSERT INTO dodava VALUES(7,6,156);
+      INSERT INTO dodava VALUES(8,9,7310);
+      INSERT INTO dodava VALUES(4,8,776);
+      INSERT INTO dodava VALUES(5,1,174);
+      INSERT INTO dodava VALUES(1,8,5594);
+      INSERT INTO dodava VALUES(0,6,7148);
+      INSERT INTO dodava VALUES(8,8,9709);
+      INSERT INTO dodava VALUES(7,7,6921);
+      INSERT INTO dodava VALUES(5,9,4284);
+      INSERT INTO dodava VALUES(3,6,8579);
+      INSERT INTO dodava VALUES(2,1,3053);
+      INSERT INTO dodava VALUES(2,0,9156);
+      INSERT INTO dodava VALUES(6,3,8844);
+      INSERT INTO dodava VALUES(3,9,2456);
+      INSERT INTO dodava VALUES(7,2,2750);
+      INSERT INTO dodava VALUES(4,4,8708);
+      INSERT INTO dodava VALUES(2,7,5308);
+      INSERT INTO dodava VALUES(5,7,9704);
+      INSERT INTO dodava VALUES(1,4,8709);
+      INSERT INTO dodava VALUES(2,4,6805);
+      INSERT INTO dodava VALUES(1,7,7213);
+      INSERT INTO dodava VALUES(9,8,9138);
+      INSERT INTO dodava VALUES(6,1,4431);
+      INSERT INTO dodava VALUES(4,7,3345);
+      INSERT INTO dodava VALUES(1,9,5812);
+      INSERT INTO dodava VALUES(6,6,9745);
+      INSERT INTO dodava VALUES(4,9,2960);
+      INSERT INTO dodava VALUES(2,3,8989);
+      INSERT INTO dodava VALUES(7,1,9124);
+      INSERT INTO dodava VALUES(8,2,9323);
+      INSERT INTO dodava VALUES(5,0,926);
+      INSERT INTO dodava VALUES(1,5,7343);
+      INSERT INTO dodava VALUES(7,3,6483);
+      INSERT INTO dodava VALUES(3,4,8520);
+      INSERT INTO dodava VALUES(3,8,3805);
+    `,
+    schema: {
+      dodavatel: [
+        {name:"ico", type:"INTEGER", pk:true},
+        {name:"nazev", type:"TEXT"},
+        {name:"mesto", type:"TEXT"},
+        {name:"vzdalenost", type:"INTEGER"}
+      ],
+      zbozi: [
+        {name:"kod", type:"INTEGER", pk:true},
+        {name:"nazev", type:"TEXT"},
+        {name:"vyrobce", type:"TEXT"}
+      ],
+      dodava: [
+        {name:"ico", type:"INTEGER", fk:"dodavatel"},
+        {name:"kod", type:"INTEGER", fk:"zbozi"},
+        {name:"cena", type:"INTEGER"},
+        {constraint:"PK(ico, kod)"}
+      ]
+    }
+  }
+};
+
+// ================== QUESTIONS ==================
+const questions = [
+  // --- BANKA ---
+  {
+    id:"b1", dataset:"banka", title:"Klienti z Brna", tags:["SELECT","WHERE","ORDER BY"],
+    text:"Vypište všechny klienty z Brna (r_cislo, jmeno, ulice, mesto) seřazené podle jména vzestupně.",
+    hint:`SELECT r_cislo, jmeno, ulice, mesto FROM klient WHERE mesto = 'Brno' ORDER BY jmeno ASC`
+  },
+  {
+    id:"b2", dataset:"banka", title:"Města klientů", tags:["SELECT","DISTINCT"],
+    text:"Z jakých měst pocházejí klienti banky? Vypište unikátní města (bez duplicit).",
+    hint:`SELECT DISTINCT mesto FROM klient`
+  },
+  {
+    id:"b3", dataset:"banka", title:"Účty s vysokým zůstatkem", tags:["SELECT","WHERE"],
+    text:"Vypište všechny účty, jejichž stav je vyšší než 20 000.",
+    hint:`SELECT * FROM ucet WHERE stav > 20000`
+  },
+  {
+    id:"b4", dataset:"banka", title:"Jmění poboček v USD", tags:["SELECT","alias"],
+    text:"Vypište název pobočky a její jmění přepočtené na USD (kurz 25 Kč/USD). Sloupec pojmenujte jmeni_usd.",
+    hint:`SELECT nazev, jmeni / 25.0 AS jmeni_usd FROM pobocka`
+  },
+  {
+    id:"b5", dataset:"banka", title:"Klienti s účtem", tags:["JOIN"],
+    text:"Kteří klienti (r_cislo, jmeno) mají v bance účet?",
+    hint:`SELECT DISTINCT k.r_cislo, k.jmeno FROM klient k JOIN ucet u ON k.r_cislo = u.r_cislo`
+  },
+  {
+    id:"b6", dataset:"banka", title:"Transakce 14. 10. 1998", tags:["JOIN"],
+    text:"Kteří klienti (r_cislo, jmeno, c_uctu, castka) provedli transakci 14. 10. 1998?",
+    hint:`SELECT k.r_cislo, k.jmeno, t.c_uctu, t.castka FROM klient k JOIN ucet u ON k.r_cislo = u.r_cislo JOIN transakce t ON u.c_uctu = t.c_uctu WHERE t.datum = '1998-10-14'`
+  },
+  {
+    id:"b7", dataset:"banka", title:"Klienti na stejné adrese", tags:["self-join"],
+    text:"Kteří klienti bydlí ve stejném městě a na stejné ulici? Vypište dvojice (jmeno1, r_cislo1, jmeno2, r_cislo2, ulice, mesto) bez opakování (r_cislo1 > r_cislo2).",
+    hint:`SELECT k1.jmeno AS jmeno1, k1.r_cislo AS rc1, k2.jmeno AS jmeno2, k2.r_cislo AS rc2, k1.ulice, k1.mesto FROM klient k1 JOIN klient k2 ON k1.mesto = k2.mesto AND k1.ulice = k2.ulice WHERE k1.r_cislo > k2.r_cislo`
+  },
+  {
+    id:"b8", dataset:"banka", title:"Počet klientů ve městech", tags:["GROUP BY","COUNT"],
+    text:"Kolik klientů bydlí v jednotlivých městech?",
+    hint:`SELECT mesto, COUNT(*) AS pocet FROM klient GROUP BY mesto`
+  },
+  {
+    id:"b9", dataset:"banka", title:"Statistiky zůstatků", tags:["aggregate"],
+    text:"Jaký je minimální, průměrný a maximální stav účtu?",
+    hint:`SELECT MIN(stav) AS min_stav, AVG(stav) AS prumer, MAX(stav) AS max_stav FROM ucet`
+  },
+  {
+    id:"b10", dataset:"banka", title:"Celkový zůstatek na pobočce", tags:["GROUP BY","SUM"],
+    text:"Jaký je součet stavů všech účtů na jednotlivých pobočkách?",
+    hint:`SELECT pobocka, SUM(stav) AS celkem FROM ucet GROUP BY pobocka`
+  },
+  {
+    id:"b11", dataset:"banka", title:"Účty a zůstatky klientů", tags:["JOIN","GROUP BY"],
+    text:"Kolik účtů mají jednotliví klienti a jaký je jejich celkový zůstatek? (jmeno, r_cislo, pocet, celkem)",
+    hint:`SELECT k.jmeno, k.r_cislo, COUNT(*) AS pocet, SUM(u.stav) AS celkem FROM klient k JOIN ucet u ON k.r_cislo = u.r_cislo GROUP BY k.jmeno, k.r_cislo`
+  },
+  {
+    id:"b12", dataset:"banka", title:"Klienti bez účtu", tags:["LEFT JOIN","IS NULL"],
+    text:"Kteří klienti nemají v bance žádný účet? (jmeno, r_cislo)",
+    hint:`SELECT k.jmeno, k.r_cislo FROM klient k LEFT JOIN ucet u ON k.r_cislo = u.r_cislo WHERE u.c_uctu IS NULL`
+  },
+  {
+    id:"b13", dataset:"banka", title:"Jen pobočka Jánská", tags:["EXISTS","correlated"],
+    text:"Kteří klienti (r_cislo, jmeno) mají účet pouze na pobočce Janska? Zahrňte klienty, kteří mají účet pouze na Jánské (nebo nemají žádný jiný účet).",
+    hint:`SELECT DISTINCT k.r_cislo, k.jmeno FROM klient k JOIN ucet u ON k.r_cislo = u.r_cislo WHERE u.pobocka = 'Janska' AND NOT EXISTS (SELECT 1 FROM ucet u2 WHERE u2.r_cislo = k.r_cislo AND (u2.pobocka <> 'Janska' OR u2.pobocka IS NULL))`
+  },
+  {
+    id:"b14", dataset:"banka", title:" více než všichni z Brna", tags:["ALL","HAVING","subquery"],
+    text:"Kteří klienti nebydlící v Brně mají celkový zůstatek na účtech větší než má každý jednotlivý brněnský klient?",
+    hint:`SELECT k.jmeno, k.r_cislo, k.mesto, SUM(u.stav) AS celkem FROM klient k JOIN ucet u ON k.r_cislo = u.r_cislo WHERE k.mesto <> 'Brno' GROUP BY k.jmeno, k.r_cislo, k.mesto HAVING SUM(u.stav) > (SELECT MAX(brno_totals.total) FROM (SELECT SUM(u2.stav) AS total FROM klient k2 JOIN ucet u2 ON k2.r_cislo = u2.r_cislo WHERE k2.mesto = 'Brno' GROUP BY k2.r_cislo) brno_totals)`
+  },
+  {
+    id:"b15", dataset:"banka", title:"Transakce v říjnu 1998", tags:["date range","BETWEEN"],
+    text:"Vypište transakce z října 1998 (c_uctu, c_transakce, datum, castka).",
+    hint:`SELECT * FROM transakce WHERE datum BETWEEN '1998-10-01' AND '1998-10-31'`
+  },
+  {
+    id:"b16", dataset:"banka", title:"UNION: Pobočky a města", tags:["UNION"],
+    text:"Vytvořte jednosloupcový seznam všech unikátních míst spojených s bankou: názvy poboček a města klientů. Použijte UNION. (place)",
+    hint:`SELECT nazev AS place FROM pobocka UNION SELECT mesto AS place FROM klient`
+  },
+  {
+    id:"b17", dataset:"banka", title:"Maximum z průměrů", tags:["nested aggregation","MAX","AVG"],
+    text:"Jaká je nejvyšší průměrná hodnota stavu účtu mezi klienty? (max_prumer)",
+    hint:`SELECT MAX(avg_stav) AS max_prumer FROM (SELECT AVG(stav) AS avg_stav FROM ucet GROUP BY r_cislo)`
+  },
+  {
+    id:"b18", dataset:"banka", title:"Klient s nejvyšším průměrem", tags:["JOIN","GROUP BY","HAVING","nested aggregation"],
+    text:"Kteří klienti mají nejvyšší průměrný stav svých účtů? (jmeno, r_cislo, prumer)",
+    hint:`SELECT k.jmeno, k.r_cislo, AVG(u.stav) AS prumer FROM klient k JOIN ucet u ON k.r_cislo = u.r_cislo GROUP BY k.jmeno, k.r_cislo HAVING AVG(u.stav) >= (SELECT MAX(avg_stav) FROM (SELECT AVG(stav) AS avg_stav FROM ucet GROUP BY r_cislo))`
+  },
+  // --- OBCHOD ---
+  {
+    id:"o1", dataset:"obchod", title:"Nákupy monitorů 2019", tags:["JOIN","GROUP BY","COUNT"],
+    text:"Kolik zboží z kategorie 'monitory' bylo zakoupeno v jednotlivých měsících roku 2019? (mesic, pocet_nakupu)",
+    hint:`SELECT CAST(SUBSTR(datum,6,2) AS INTEGER) AS mesic, COUNT(*) AS pocet_nakupu FROM koupil k JOIN zbozi z ON k.kodZb = z.kodZb WHERE z.kategorie = 'monitory' AND datum BETWEEN '2019-01-01' AND '2019-12-31' GROUP BY CAST(SUBSTR(datum,6,2) AS INTEGER)`
+  },
+  {
+    id:"o2", dataset:"obchod", title:"Zboží pro mladé", tags:["NOT EXISTS","correlated"],
+    text:"Která zboží (kodZb, nazev, kategorie) nakupovali pouze zákazníci narození po roce 2000 (tj. od 1. 1. 2001)?",
+    hint:`SELECT z.kodZb, z.nazev, z.kategorie FROM zbozi z WHERE NOT EXISTS (SELECT 1 FROM koupil k JOIN zakaznik za ON k.cisloZ = za.cisloZ WHERE k.kodZb = z.kodZb AND za.dat_nar <= '2000-12-31')`
+  },
+  {
+    id:"o3", dataset:"obchod", title:"Samsung A20 nejdražší", tags:["JOIN","MAX","subquery"],
+    text:"Kteří zákazníci (cisloZ, jmeno, mesto) koupili zboží 'Samsung A20' za nejvyšší cenu?",
+    hint:`SELECT za.cisloZ, za.jmeno, za.mesto FROM zakaznik za JOIN koupil k ON za.cisloZ = k.cisloZ JOIN zbozi z ON k.kodZb = z.kodZb WHERE z.nazev = 'Samsung A20' AND k.cena = (SELECT MAX(k2.cena) FROM koupil k2 JOIN zbozi z2 ON k2.kodZb = z2.kodZb WHERE z2.nazev = 'Samsung A20')`
+  },
+  {
+    id:"o4", dataset:"obchod", title:"Příjmy podle kategorie", tags:["JOIN","GROUP BY","SUM"],
+    text:"Která kategorie zboží utržila nejvíce peněz celkem? Vypište jen tu nejvyšší (kategorie, celkem).",
+    hint:`SELECT z.kategorie, SUM(k.cena) AS celkem FROM koupil k JOIN zbozi z ON k.kodZb = z.kodZb GROUP BY z.kategorie ORDER BY celkem DESC LIMIT 1`
+  },
+  {
+    id:"o5", dataset:"obchod", title:"Zákazníci s 3+ produkty", tags:["JOIN","GROUP BY","HAVING"],
+    text:"Kteří zákazníci (cisloZ, jmeno) si koupili alespoň 3 různé druhy zboží?",
+    hint:`SELECT za.cisloZ, za.jmeno, COUNT(DISTINCT k.kodZb) AS pocet_produktu FROM zakaznik za JOIN koupil k ON za.cisloZ = k.cisloZ GROUP BY za.cisloZ, za.jmeno HAVING COUNT(DISTINCT k.kodZb) >= 3`
+  },
+  {
+    id:"o6", dataset:"obchod", title:"Zákazníci bez nákupu", tags:["LEFT JOIN","IS NULL"],
+    text:"Kteří zákazníci zatím nic nekoupili? (cisloZ, jmeno)",
+    hint:`SELECT z.cisloZ, z.jmeno FROM zakaznik z LEFT JOIN koupil k ON z.cisloZ = k.cisloZ WHERE k.cisloZ IS NULL`
+  },
+  {
+    id:"o7", dataset:"obchod", title:"Výrobci v kategoriích", tags:["GROUP BY","HAVING"],
+    text:"Kteří výrobci mají zboží v alespoň 2 různých kategoriích? (vyrobce, pocet_kategorii)",
+    hint:`SELECT vyrobce, COUNT(DISTINCT kategorie) AS pocet_kategorii FROM zbozi GROUP BY vyrobce HAVING COUNT(DISTINCT kategorie) >= 2`
+  },
+  {
+    id:"o8", dataset:"obchod", title:"Celkové výdaje zákazníků", tags:["JOIN","GROUP BY","SUM"],
+    text:"Kolik peněz celkem utratil každý zákazník? (cisloZ, jmeno, celkem_utraceno)",
+    hint:`SELECT z.cisloZ, z.jmeno, COALESCE(SUM(k.cena),0) AS celkem_utraceno FROM zakaznik z LEFT JOIN koupil k ON z.cisloZ = k.cisloZ GROUP BY z.cisloZ, z.jmeno`
+  },
+  // --- UNIVERZITA ---
+  {
+    id:"u1", dataset:"univerzita", title:"Více než 70 kreditů", tags:["JOIN","GROUP BY","HAVING","SUM"],
+    text:"Kteří studenti (cisloS, jmeno) mají v roce 2021 zapsáno více než 70 kreditů celkem?",
+    hint:`SELECT s.cisloS, s.jmeno, SUM(p.kredity) AS kreditu_celkem FROM student s JOIN zapsal z ON s.cisloS = z.cisloS JOIN predmet p ON z.zkratkaP = p.zkratkaP WHERE z.ak_rok = 2021 GROUP BY s.cisloS, s.jmeno HAVING SUM(p.kredity) > 70`
+  },
+  {
+    id:"u2", dataset:"univerzita", title:"Prošel matematiku", tags:["JOIN","WHERE"],
+    text:"Kteří studenti (jmeno, mesto) v roce 2021 složili Matematiku (body >= 50)? Seřaďte vzestupně podle jména, pak města.",
+    hint:`SELECT s.jmeno, s.mesto FROM student s JOIN zapsal z ON s.cisloS = z.cisloS JOIN predmet p ON z.zkratkaP = p.zkratkaP WHERE p.nazev = 'Matematika' AND z.ak_rok = 2021 AND z.body >= 50 ORDER BY s.jmeno ASC, s.mesto ASC`
+  },
+  {
+    id:"u3", dataset:"univerzita", title:"Průměr bodů z předmětů", tags:["JOIN","GROUP BY","AVG"],
+    text:"Jaký je průměrný počet bodů z jednotlivých předmětů? (nazev, prumer)",
+    hint:`SELECT p.nazev, AVG(z.body) AS prumer FROM predmet p JOIN zapsal z ON p.zkratkaP = z.zkratkaP GROUP BY p.nazev`
+  },
+  {
+    id:"u4", dataset:"univerzita", title:"Nejlepší student", tags:["JOIN","GROUP BY","MAX","subquery"],
+    text:"Který student (nebo studenti) má nejvyšší celkový počet bodů z předmětů zapsaných v roce 2021?",
+    hint:`SELECT s.cisloS, s.jmeno, SUM(z.body) AS celkem_bodu FROM student s JOIN zapsal z ON s.cisloS = z.cisloS WHERE z.ak_rok = 2021 GROUP BY s.cisloS, s.jmeno HAVING SUM(z.body) >= (SELECT MAX(tot.total) FROM (SELECT SUM(z2.body) AS total FROM zapsal z2 WHERE z2.ak_rok = 2021 GROUP BY z2.cisloS) tot)`
+  },
+  {
+    id:"u5", dataset:"univerzita", title:"Nepoužité předměty", tags:["LEFT JOIN","IS NULL"],
+    text:"Které předměty nemají v roce 2021 žádné zápisy? (zkratkaP, nazev)",
+    hint:`SELECT p.zkratkaP, p.nazev FROM predmet p LEFT JOIN zapsal z ON p.zkratkaP = z.zkratkaP AND z.ak_rok = 2021 WHERE z.cisloS IS NULL`
+  },
+  {
+    id:"u6", dataset:"univerzita", title:"Město s nejvíce studenty", tags:["JOIN","GROUP BY","COUNT","LIMIT"],
+    text:"Které město má nejvíce zapsaných studentů v roce 2021? (mesto, pocet)",
+    hint:`SELECT s.mesto, COUNT(DISTINCT s.cisloS) AS pocet FROM student s JOIN zapsal z ON s.cisloS = z.cisloS WHERE z.ak_rok = 2021 GROUP BY s.mesto ORDER BY pocet DESC, s.mesto ASC LIMIT 1`
+  },
+  {
+    id:"u7", dataset:"univerzita", title:"Studenti ve všech předmětech", tags:["NOT EXISTS","division","relational division"],
+    text:"Kteří studenti jsou zapsáni ve VŠECH předmětech? Použijte NOT EXISTS.",
+    hint:`SELECT s.cisloS, s.jmeno FROM student s WHERE NOT EXISTS (SELECT 1 FROM predmet p WHERE NOT EXISTS (SELECT 1 FROM zapsal z WHERE z.cisloS = s.cisloS AND z.zkratkaP = p.zkratkaP))`
+  },
+  {
+    id:"u8", dataset:"univerzita", title:"Zápis do Databáze s průměrem >60", tags:["JOIN","HAVING","AVG"],
+    text:"Ve kterých městech mají studenti zapsanou Databázi s průměrným bodovým ziskem vyšším než 60? (mesto, prumer)",
+    hint:`SELECT s.mesto, AVG(z.body) AS prumer FROM student s JOIN zapsal z ON s.cisloS = z.cisloS JOIN predmet p ON z.zkratkaP = p.zkratkaP WHERE p.nazev = 'Databaze' GROUP BY s.mesto HAVING AVG(z.body) > 60`
+  },
+  // --- FIRMA ---
+  {
+    id:"f1", dataset:"firma", title:"Průměrná mzda v oddělení", tags:["GROUP BY","AVG"],
+    text:"Jaká je průměrná mzda v jednotlivých odděleních? (oddelenie, prumerna_mzda)",
+    hint:`SELECT oddelenie, AVG(mzda) AS prumerna_mzda FROM zamestnanec GROUP BY oddelenie`
+  },
+  {
+    id:"f2", dataset:"firma", title:"Oddělení s nejvyšší průměrnou mzdou", tags:["GROUP BY","ORDER BY","subquery"],
+    text:"Které oddělení má nejvyšší průměrnou mzdu? Vypište jen to jedno (případně více při shodě).",
+    hint:`SELECT oddelenie, AVG(mzda) AS prumerna_mzda FROM zamestnanec GROUP BY oddelenie HAVING AVG(mzda) >= (SELECT MAX(avg_mzda) FROM (SELECT AVG(mzda) AS avg_mzda FROM zamestnanec GROUP BY oddelenie) dept_avgs)`
+  },
+  {
+    id:"f3", dataset:"firma", title:"Manažeři oddělení", tags:["WHERE"],
+    text:"Kteří zaměstnanci vedou nějaké oddělení? (id, meno, vedeneOddelenie). Účetně započítejte i NULL jako 'nevede'.",
+    hint:`SELECT id, meno, vedeneOddelenie FROM zamestnanec WHERE vedeneOddelenie IS NOT NULL`
+  },
+  {
+    id:"f4", dataset:"firma", title:"Počet zaměstnanců včetně prázdných oddělení", tags:["LEFT JOIN","COUNT"],
+    text:"Kolik zaměstnanců má jednotlivá oddělení? Zahrňte i oddělení bez zaměstnanců. (nazov, popis, pocet_zamestnancu)",
+    hint:`SELECT o.nazov, o.popis, COUNT(z.id) AS pocet_zamestnancu FROM oddeleni o LEFT JOIN zamestnanec z ON o.nazov = z.oddelenie GROUP BY o.nazov, o.popis`
+  },
+  {
+    id:"f5", dataset:"firma", title:"Nad průměrem oddělení", tags:["correlated subquery"],
+    text:"Kteří zaměstnanci mají mzdu vyšší než průměr svého oddělení? (id, meno, mzda, oddelenie)",
+    hint:`SELECT z1.id, z1.meno, z1.mzda, z1.oddelenie FROM zamestnanec z1 WHERE z1.mzda > (SELECT AVG(z2.mzda) FROM zamestnanec z2 WHERE z2.oddelenie = z1.oddelenie)`
+  },
+  {
+    id:"f6", dataset:"firma", title:"Oddělení s vysokými platy", tags:["GROUP BY","HAVING","MAX"],
+    text:"Která oddělení mají alespoň jednoho zaměstnance s mzdou vyšší než 4000? (oddelenie, max_mzda)",
+    hint:`SELECT oddelenie, MAX(mzda) AS max_mzda FROM zamestnanec GROUP BY oddelenie HAVING MAX(mzda) > 4000`
+  },
+  // --- SERVIS ---
+  {
+    id:"s1", dataset:"servis", title:"Mechanik s nejvíce auty", tags:["JOIN","GROUP BY","COUNT","LIMIT"],
+    text:"Který mechanik opravoval nejvíce různých aut? (cisloM, meno, pocet_aut)",
+    hint:`SELECT m.cisloM, m.meno, COUNT(DISTINCT o.spz) AS pocet_aut FROM mechanik m JOIN oprava o ON m.cisloM = o.cisloM GROUP BY m.cisloM, m.meno ORDER BY pocet_aut DESC, m.cisloM ASC LIMIT 1`
+  },
+  {
+    id:"s2", dataset:"servis", title:"Náklady na opravu auta", tags:["JOIN","GROUP BY","SUM"],
+    text:"Kolik celkem stály opravy jednotlivých aut? (spz, znacka, celkem)",
+    hint:`SELECT a.spz, a.znacka, SUM(o.cena) AS celkem FROM auto a JOIN oprava o ON a.spz = o.spz GROUP BY a.spz, a.znacka`
+  },
+  {
+    id:"s3", dataset:"servis", title:"Průměrná cena opravy podle značky", tags:["JOIN","GROUP BY","AVG"],
+    text:"Jaká je průměrná cena opravy pro jednotlivé značky aut? (znacka, prumerna_cena)",
+    hint:`SELECT a.znacka, AVG(o.cena) AS prumerna_cena FROM auto a JOIN oprava o ON a.spz = o.spz GROUP BY a.znacka`
+  },
+  {
+    id:"s4", dataset:"servis", title:"Značky pouze od Adama", tags:["NOT EXISTS","correlated"],
+    text:"Které značky aut byly opravovány POUZE mechanikem Adamem? (znacka)",
+    hint:`SELECT DISTINCT a.znacka FROM auto a JOIN oprava o ON a.spz = o.spz JOIN mechanik m ON o.cisloM = m.cisloM WHERE m.meno = 'Adam' AND NOT EXISTS (SELECT 1 FROM oprava o2 JOIN mechanik m2 ON o2.cisloM = m2.cisloM JOIN auto a2 ON o2.spz = a2.spz WHERE a2.znacka = a.znacka AND m2.meno <> 'Adam')`
+  },
+  {
+    id:"s5", dataset:"servis", title:"Auta s náklady > 50000", tags:["JOIN","GROUP BY","HAVING","SUM"],
+    text:"Která auta mají celkové náklady na opravy vyšší než 50 000? (spz, znacka, celkem)",
+    hint:`SELECT a.spz, a.znacka, SUM(o.cena) AS celkem FROM auto a JOIN oprava o ON a.spz = o.spz GROUP BY a.spz, a.znacka HAVING SUM(o.cena) > 50000`
+  },
+  {
+    id:"s6", dataset:"servis", title:"Mechanici všechny typy oprav", tags:["GROUP BY","HAVING","COUNT DISTINCT"],
+    text:"Kteří mechanici prováděli všechny tři typy oprav (brzdy, vymena, oprava)? (cisloM, meno)",
+    hint:`SELECT m.cisloM, m.meno FROM mechanik m JOIN oprava o ON m.cisloM = o.cisloM GROUP BY m.cisloM, m.meno HAVING COUNT(DISTINCT o.typ) = 3`
+  },
+  {
+    id:"s7", dataset:"servis", title:"Mechanici nad průměrnou cenou", tags:["JOIN","GROUP BY","HAVING","AVG","subquery"],
+    text:"Kteří mechanici mají průměrnou cenu opravy vyšší než celkový průměr všech oprav?",
+    hint:`SELECT m.cisloM, m.meno, AVG(o.cena) AS prumerna_cena FROM mechanik m JOIN oprava o ON m.cisloM = o.cisloM GROUP BY m.cisloM, m.meno HAVING AVG(o.cena) > (SELECT AVG(cena) FROM oprava)`
+  },
+  // --- DODAVATELE ---
+  {
+    id:"d1", dataset:"dodavatele", title:"Dodavatelé HD 30 GB", tags:["JOIN"],
+    text:"Kteří dodavatelé dodávají zboží s názvem 'HD 30 GB'? (nazev)",
+    hint:`SELECT DISTINCT d.nazev FROM dodavatel d JOIN dodava da ON d.ico = da.ico JOIN zbozi z ON da.kod = z.kod WHERE z.nazev = 'HD 30 GB'`
+  },
+  {
+    id:"d2", dataset:"dodavatele", title:"Nejnižší cena HD 30 GB", tags:["JOIN","MIN","subquery"],
+    text:"Který dodavatel dodává 'HD 30 GB' za nejnižší cenu?",
+    hint:`SELECT d.nazev, da.cena FROM dodavatel d JOIN dodava da ON d.ico = da.ico JOIN zbozi z ON da.kod = z.kod WHERE z.nazev = 'HD 30 GB' AND da.cena = (SELECT MIN(da2.cena) FROM dodava da2 JOIN zbozi z2 ON da2.kod = z2.kod WHERE z2.nazev = 'HD 30 GB')`
+  },
+  {
+    id:"d3", dataset:"dodavatele", title:"Počet druhů zboží na dodavatele", tags:["JOIN","GROUP BY","COUNT"],
+    text:"Kolik druhů zboží dodávají jednotliví dodavatelé? (nazev, pocet)",
+    hint:`SELECT d.nazev, COUNT(*) AS pocet FROM dodavatel d JOIN dodava da ON d.ico = da.ico GROUP BY d.nazev ORDER BY d.nazev`
+  },
+  {
+    id:"d4", dataset:"dodavatele", title:"Počet dodavatelů na zboží", tags:["JOIN","GROUP BY","COUNT","ORDER BY"],
+    text:"Kolik dodavatelů dodává jednotlivé druhy zboží? Seřaďte sestupně podle počtu. (nazev, pocet_dodavatelu)",
+    hint:`SELECT z.nazev, COUNT(*) AS pocet_dodavatelu FROM zbozi z JOIN dodava da ON z.kod = da.kod GROUP BY z.nazev ORDER BY pocet_dodavatelu DESC`
+  },
+  {
+    id:"d5", dataset:"dodavatele", title:"Zboží od jediného dodavatele", tags:["JOIN","GROUP BY","HAVING"],
+    text:"Které zboží dodává jen jeden dodavatel a kdo to je? (zbozi_nazev, dodavatel_nazev)",
+    hint:`SELECT z.nazev AS zbozi_nazev, d.nazev AS dodavatel_nazev FROM zbozi z JOIN dodava da ON z.kod = da.kod JOIN dodavatel d ON da.ico = d.ico WHERE z.kod IN (SELECT kod FROM dodava GROUP BY kod HAVING COUNT(*) = 1)`
+  },
+  {
+    id:"d6", dataset:"dodavatele", title:"Dodavatelé s více než 2 produkty", tags:["JOIN","GROUP BY","HAVING"],
+    text:"Kteří dodavatelé dodávají více než 2 druhy zboží? (nazev, pocet)",
+    hint:`SELECT d.nazev, COUNT(*) AS pocet FROM dodavatel d JOIN dodava da ON d.ico = da.ico GROUP BY d.nazev HAVING COUNT(*) > 2`
+  },
+  {
+    id:"d7", dataset:"dodavatele", title:"Kroměřížští dodavatelé nejdražšího", tags:["JOIN","MAX","subquery"],
+    text:"Kteří dodavatelé z Kroměříže dodávají své nejdražší zboží (max cena mezi jejich dodávkami) za cenu vyšší než 5000? (nazev, max_cena)",
+    hint:`SELECT d.nazev, MAX(da.cena) AS max_cena FROM dodavatel d JOIN dodava da ON d.ico = da.ico WHERE d.mesto = 'Kromeriz' GROUP BY d.nazev HAVING MAX(da.cena) > 5000`
+  },
+  {
+    id:"d8", dataset:"dodavatele", title:"Dodavatelé nad průměrnou vzdáleností", tags:["subquery","AVG"],
+    text:"Kteří dodavatelé jsou umístěni ve městě, které je ve vzdálenosti vyšší než průměrná vzdálenost všech dodavatelů? (nazev, mesto, vzdalenost)",
+    hint:`SELECT nazev, mesto, vzdalenost FROM dodavatel WHERE vzdalenost > (SELECT AVG(vzdalenost) FROM dodavatel)`
+  },
+  // --- THEORY / DDL ---
+  {
+    id:"t1", dataset:"none", title:"DDL: Vytvoření tabulky", tags:["DDL","CREATE TABLE"],
+    text:"Napište příkaz CREATE TABLE pro tabulku Student (id INT PK, jmeno VARCHAR(50) NOT NULL, mesto VARCHAR(50)).",
+    hint:`CREATE TABLE Student (id INTEGER PRIMARY KEY, jmeno TEXT NOT NULL, mesto TEXT);`,
+    executable:false
+  },
+  {
+    id:"t2", dataset:"none", title:"DDL: Cizí klíč s CASCADE", tags:["DDL","ALTER TABLE"],
+    text:"Napište příkaz, který do existující tabulky Zapsal (cisloS, zkratkaP) přidá cizí klíč na Student(cisloS) s ON DELETE CASCADE.",
+    hint:`ALTER TABLE Zapsal ADD CONSTRAINT fk_zapsal_student FOREIGN KEY (cisloS) REFERENCES Student(cisloS) ON DELETE CASCADE;`,
+    executable:false
+  },
+  {
+    id:"t3", dataset:"none", title:"DCL: GRANT", tags:["DCL","GRANT"],
+    text:"Napište příkaz, který uživateli 'user01' přidělí práva ke čtení a modifikaci tabulky Zbozi.",
+    hint:`GRANT ALL ON Zbozi TO user01;`,
+    executable:false
+  },
+  {
+    id:"t4", dataset:"none", title:"Teorie: SAVEPOINT", tags:["transaction"],
+    text:"Vysvětlete, k čemu slouží SAVEPOINT v transakci a jak se liší od COMMIT.",
+    hint:`SAVEPOINT vytvoří bod v rámci transakce, ke kterému lze se vrátit pomocí ROLLBACK TO SAVEPOINT. COMMIT trvale uloží všechny změny transakce do databáze a uvolní zámky.`,
+    executable:false
+  },
+  {
+    id:"t5", dataset:"none", title:"Teorie: UNION vs UNION ALL", tags:["set operations"],
+    text:"Jaký je rozdíl mezi UNION a UNION ALL?",
+    hint:`UNION sjednotí výsledky dvou dotazů a odstraní duplicity. UNION ALL také sjednotí výsledky, ale ponechá duplicitní řádky. UNION ALL je rychlejší.`,
+    executable:false
+  },
+  {
+    id:"t6", dataset:"none", title:"DDL: Trigger pro audit", tags:["trigger"],
+    text:"Napište trigger, který při smazání záznamu z tabulky Rezervace uloží data do tabulky Rezervace_historie.",
+    hint:`CREATE TRIGGER trig BEFORE DELETE ON Rezervace BEGIN INSERT INTO Rezervace_historie VALUES (:old.ID, :old.zkratkaP, :old.cisloU, :old.den, :old.zacatek, :old.konec); END;`,
+    executable:false
+  },
+  {
+    id:"t7", dataset:"none", title:"DCL: CURSOR", tags:["cursor","PL/SQL"],
+    text:"Napište deklaraci kurzoru pro dotaz: Rezervace kterých předmětů začínají v pondělí ve 12:00? Uveďte i základní příkazy pro práci s kurzorem.",
+    hint:`DECLARE CURSOR cur IS SELECT DISTINCT * FROM Rezervace WHERE den = 'pondeli' AND zacatek = '12:00'; BEGIN OPEN cur; FETCH cur INTO row_var; CLOSE cur; END;`,
+    executable:false
+  },
+  {
+    id:"t8", dataset:"none", title:"DDL: Materializovaný pohled", tags:["materialized view"],
+    text:"Napište příkaz pro vytvoření materializovaného pohledu obsahujícího počet prodejů jednotlivých zboží (kodZb, nazev, pocet_prodeju).",
+    hint:`CREATE MATERIALIZED VIEW mv AS SELECT kodZb, nazev, COUNT(*) AS pocet_prodeju FROM Zbozi NATURAL JOIN Koupil GROUP BY kodZb, nazev; -- V Oracle lze přidat REFRESH ON COMMIT`,
+    executable:false
+  }
+];
+
+// ================== APP STATE ==================
+let SQL = null;
+let currentDb = null;
+let currentQuestion = null;
+let expectedResults = new Map(); // question id -> result object
+
+// ================== HELPERS ==================
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function resultToTable(res) {
+  if (!res || !res.length) return '<p style="color:var(--muted)"><em>No rows.</em></p>';
+  const cols = Object.keys(res[0]);
+  let html = '<table><thead><tr>' + cols.map(c => `<th>${escapeHtml(c)}</th>`).join('') + '</tr></thead><tbody>';
+  for (const row of res) {
+    html += '<tr>' + cols.map(c => `<td>${escapeHtml(row[c] ?? 'NULL')}</td>`).join('') + '</tr>';
+  }
+  html += '</tbody></table>';
+  return html;
+}
+function resultFromStmt(stmt) {
+  const res = [];
+  const cols = stmt.getColumnNames();
+  const seen = new Map();
+  const uniqueCols = cols.map(c => {
+    const count = seen.get(c) || 0;
+    seen.set(c, count + 1);
+    return count === 0 ? c : c + '_' + count;
+  });
+  while (stmt.step()) {
+    const obj = {};
+    const row = stmt.get();
+    for (let i = 0; i < uniqueCols.length; i++) obj[uniqueCols[i]] = row[i];
+    res.push(obj);
+  }
+  stmt.free();
+  return res;
+}
+function execSql(db, sql) {
+  // Remove trailing semicolon for sql.js prepare compatibility if needed, but sql.js usually handles it
+  sql = sql.trim();
+  // Only run first statement for safety in the app
+  const first = sql.split(';')[0] + ';';
+  const stmt = db.prepare(first);
+  const res = resultFromStmt(stmt);
+  return res;
+}
+function getDb(datasetKey) {
+  const db = new SQL.Database();
+  const init = datasets[datasetKey].init;
+  db.exec(init);
+  return db;
+}
+function computeExpected(q) {
+  if (q.executable === false) return null;
+  const db = getDb(q.dataset);
+  try {
+    const res = execSql(db, q.hint);
+    db.close();
+    return { rows: res, ok: true };
+  } catch (e) {
+    db.close();
+    return { error: e.message, ok: false };
+  }
+}
+function resultsEqual(a, b) {
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  if (a.length === 0) return true;
+  const colsA = Object.keys(a[0]).sort();
+  const colsB = Object.keys(b[0]).sort();
+  if (colsA.length !== colsB.length) return false;
+  for (let i = 0; i < colsA.length; i++) if (colsA[i] !== colsB[i]) return false;
+  const canon = (rows) => {
+    return rows.map(r => colsA.map(k => {
+      const v = r[k];
+      if (v == null) return 'NULL';
+      if (typeof v === 'number') return Number(v).toFixed(4);
+      return String(v);
+    }).join('|')).sort();
+  };
+  const ca = canon(a);
+  const cb = canon(b);
+  for (let i = 0; i < ca.length; i++) if (ca[i] !== cb[i]) return false;
+  return true;
+}
+
+// ================== UI ==================
+function renderSidebar(filter='') {
+  const qlist = document.getElementById('qlist');
+  qlist.innerHTML = '';
+  const groups = {};
+  for (const q of questions) {
+    if (filter) {
+      const hay = (q.title + ' ' + q.tags.join(' ') + ' ' + datasets[q.dataset]?.name).toLowerCase();
+      if (!hay.includes(filter.toLowerCase())) continue;
+    }
+    const g = datasets[q.dataset]?.name || 'Theory';
+    if (!groups[g]) groups[g] = [];
+    groups[g].push(q);
+  }
+  for (const g of Object.keys(groups).sort()) {
+    const div = document.createElement('div'); div.className = 'group';
+    const t = document.createElement('div'); t.className = 'group-title'; t.textContent = g; div.appendChild(t);
+    for (const q of groups[g]) {
+      const item = document.createElement('div');
+      item.className = 'qitem' + (currentQuestion?.id === q.id ? ' active' : '');
+      item.innerHTML = `<div>${escapeHtml(q.title)}</div><div class="tag">${q.tags.map(t=>`<span class="pill">${escapeHtml(t)}</span>`).join(' ')}</div>`;
+      item.onclick = () => selectQuestion(q);
+      div.appendChild(item);
+    }
+    qlist.appendChild(div);
+  }
+}
+
+function pickRandomQuestion() {
+  const pool = questions.filter(q => q.executable !== false);
+  let next;
+  if (pool.length <= 1) { next = pool[0]; }
+  else {
+    do { next = pool[Math.floor(Math.random() * pool.length)]; }
+    while (currentQuestion && next.id === currentQuestion.id);
+  }
+  if (next) {
+    document.getElementById('search').value = '';
+    renderSidebar('');
+    selectQuestion(next);
+  }
+}
+
+function selectQuestion(q) {
+  currentQuestion = q;
+  renderSidebar(document.getElementById('search').value);
+  document.getElementById('qtitle').textContent = q.title;
+  const pills = document.getElementById('qpills');
+  pills.innerHTML = `<span class="pill">${escapeHtml(datasets[q.dataset]?.name || 'Theory')}</span>` +
+    q.tags.map(t => `<span class="pill">${escapeHtml(t)}</span>`).join('');
+
+  const content = document.getElementById('content');
+  const isTheory = q.executable === false;
+
+  let html = `
+    <div class="card">
+      <h3>Assignment</h3>
+      <div class="assignment">${escapeHtml(q.text)}</div>
+    </div>
+  `;
+
+  if (!isTheory) {
+    html += `
+      <div class="card">
+        <h3>Dataset schema</h3>
+        <div class="schema" id="schema"></div>
+      </div>
+      <div class="card">
+        <h3>Dataset data</h3>
+        <div id="dataTabs" class="tabs">
+          ${Object.keys(datasets[q.dataset].schema).map((t,i)=>`<button class="tab ${i===0?'active':''}" onclick="showDataTab('${t}')">${t}</button>`).join('')}
+        </div>
+        <div id="dataPanel"></div>
+      </div>
+      <div class="card">
+        <h3>Your SQL</h3>
+        <div class="editor">
+          <textarea id="userSql" placeholder="Write your SQL query here...">${localStorage.getItem('sql_' + q.id) || ''}</textarea>
+          <div class="actions">
+            <button class="btn" onclick="runUserSql()">▶ Run SQL</button>
+            <button class="btn secondary" onclick="showHint()">💡 Show Hint</button>
+            <button class="btn secondary" onclick="resetQuestion()">Reset</button>
+          </div>
+        </div>
+      </div>
+      <div class="card hidden" id="resultCard">
+        <h3>Your Result</h3>
+        <div id="userResult" class="result-box"></div>
+        <div id="userStatus"></div>
+      </div>
+      <div class="card hidden" id="expectedCard">
+        <h3>Expected Result</h3>
+        <div id="expectedResult" class="result-box"></div>
+      </div>
+      <div class="card hidden" id="hintCard">
+        <h3>Hint</h3>
+        <div class="hint-box"><pre>${escapeHtml(q.hint)}</pre></div>
+      </div>
+    `;
+  } else {
+    html += `
+      <div class="card">
+        <h3>Hint / Answer</h3>
+        <div class="hint-box"><pre>${escapeHtml(q.hint)}</pre></div>
+      </div>
+    `;
+  }
+
+  content.innerHTML = html;
+
+  if (!isTheory) {
+    renderSchema(q.dataset);
+    showDataTab(Object.keys(datasets[q.dataset].schema)[0]);
+    if (!expectedResults.has(q.id)) {
+      expectedResults.set(q.id, computeExpected(q));
+    }
+  }
+}
+
+function renderSchema(key) {
+  const el = document.getElementById('schema');
+  const s = datasets[key].schema;
+  let html = '';
+  for (const [tname, cols] of Object.entries(s)) {
+    html += `<div class="schema-table">
+      <div class="schema-title">${escapeHtml(tname)}</div>`;
+    for (const c of cols) {
+      if (c.constraint) {
+        html += `<div class="schema-row"><span>${escapeHtml(c.constraint)}</span></div>`;
+      } else {
+        const badges = [];
+        if (c.pk) badges.push('<span class="pk">PK</span>');
+        if (c.fk) badges.push('<span class="fk">FK→'+escapeHtml(c.fk)+'</span>');
+        if (c.notNull) badges.push('<span style="color:var(--error)">NOT NULL</span>');
+        if (c.auto) badges.push('<span style="color:var(--success)">AUTO</span>');
+        html += `<div class="schema-row"><span>${escapeHtml(c.name)} <span style="color:var(--muted)">${escapeHtml(c.type)}</span></span><span>${badges.join(' ')}</span></div>`;
+      }
+    }
+    html += '</div>';
+  }
+  el.innerHTML = html;
+}
+
+window.showDataTab = function(tableName) {
+  document.querySelectorAll('#dataTabs .tab').forEach(t => t.classList.toggle('active', t.textContent === tableName));
+  const db = getDb(currentQuestion.dataset);
+  const res = execSql(db, `SELECT * FROM ${tableName} LIMIT 100`);
+  db.close();
+  document.getElementById('dataPanel').innerHTML = resultToTable(res);
+};
+
+window.runUserSql = function() {
+  const sql = document.getElementById('userSql').value;
+  if (!sql.trim()) return;
+  localStorage.setItem('sql_' + currentQuestion.id, sql);
+  const card = document.getElementById('resultCard');
+  card.classList.remove('hidden');
+  const db = getDb(currentQuestion.dataset);
+  let res = [], cols = [], err;
+  try {
+    const first = sql.trim().split(';')[0] + ';';
+    const stmt = db.prepare(first);
+    cols = stmt.getColumnNames();
+    const seen = new Map();
+    const uniqueCols = cols.map(c => {
+      const count = seen.get(c) || 0;
+      seen.set(c, count + 1);
+      return count === 0 ? c : c + '_' + count;
+    });
+    while (stmt.step()) {
+      const obj = {};
+      const row = stmt.get();
+      for (let i = 0; i < uniqueCols.length; i++) obj[uniqueCols[i]] = row[i];
+      res.push(obj);
+    }
+    stmt.free();
+  } catch (e) { err = e.message; }
+  db.close();
+
+  const exp = expectedResults.get(currentQuestion.id);
+
+  if (err) {
+    document.getElementById('userResult').innerHTML = '';
+    document.getElementById('userStatus').innerHTML = `<div class="status err">❌ Error: ${escapeHtml(err)}</div>`;
+  } else if (cols.length === 0) {
+    document.getElementById('userResult').innerHTML = '';
+    document.getElementById('userStatus').innerHTML = `<div class="status info">ℹ️ Statement executed (no result set).<br>This app only checks SELECT queries.</div>`;
+  } else {
+    document.getElementById('userResult').innerHTML = resultToTable(res);
+    if (exp && exp.ok && resultsEqual(res, exp.rows)) {
+      document.getElementById('userStatus').innerHTML = `<div class="status ok">✅ Correct! Your result matches the expected output.</div>`;
+    } else {
+      document.getElementById('userStatus').innerHTML = `<div class="status info">ℹ️ Query executed. Compare with Expected Result below.<br><small>${res.length} row(s)</small></div>`;
+    }
+  }
+
+  document.getElementById('expectedCard').classList.remove('hidden');
+  if (exp && exp.ok) {
+    document.getElementById('expectedResult').innerHTML = resultToTable(exp.rows);
+  } else if (exp) {
+    document.getElementById('expectedResult').innerHTML = `<div class="status err">Expected result compute error: ${escapeHtml(exp.error)}</div>`;
+  }
+};
+
+window.showHint = function() {
+  document.getElementById('hintCard').classList.remove('hidden');
+};
+
+window.resetQuestion = function() {
+  localStorage.removeItem('sql_' + currentQuestion.id);
+  selectQuestion(currentQuestion);
+};
+
+// ================== INIT ==================
+initSqlJs({ locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}` }).then(sql => {
+  SQL = sql;
+  renderSidebar();
+  // Precompute all expected results in background
+  for (const q of questions) {
+    if (q.executable !== false && !expectedResults.has(q.id)) {
+      try { expectedResults.set(q.id, computeExpected(q)); } catch(e) {}
+    }
+  }
+}).catch(err => {
+  document.getElementById('qlist').innerHTML = `<div style="padding:12px;color:#fca5a5">Failed to load sql.js: ${escapeHtml(err.message)}</div>`;
+});
+
+document.getElementById('search').addEventListener('input', e => renderSidebar(e.target.value));
+</script>
+</body>
+</html>
